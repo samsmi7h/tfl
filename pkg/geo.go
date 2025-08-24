@@ -1,6 +1,11 @@
 package pkg
 
-import "math"
+import (
+	"fmt"
+	"math"
+	"strconv"
+	"strings"
+)
 
 const earthRadiusKm = 6371.0088
 
@@ -19,4 +24,23 @@ func Haversine(lat1, lon1, lat2, lon2 float64) float64 {
 	a := sinDφ*sinDφ + math.Cos(φ1)*math.Cos(φ2)*sinDλ*sinDλ
 	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 	return earthRadiusKm * c
+}
+
+func ParseCoords(coords string) (float64, float64, error) {
+	parts := strings.Split(coords, ",")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid coords parameter")
+	}
+
+	lat, err := strconv.ParseFloat(parts[0], 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid latitude")
+	}
+
+	lng, err := strconv.ParseFloat(parts[1], 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid longitude")
+	}
+
+	return lat, lng, nil
 }

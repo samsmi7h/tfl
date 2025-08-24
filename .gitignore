@@ -1,0 +1,6 @@
+*.zip
+
+# build artifacts
+/lambda
+/bootstrap
+

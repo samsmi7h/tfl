@@ -6,7 +6,6 @@ import (
 )
 
 type Config struct {
-	// TFLAppID  string
 	TFLAppKey string
 	Port      string
 }
@@ -25,7 +24,6 @@ func Init() (Config, error) {
 	}
 
 	cfg := Config{
-		// TFLAppID:  os.Getenv("TFL_APP_ID"),
 		TFLAppKey: os.Getenv("TFL_APP_KEY"),
 		Port:      port,
 	}

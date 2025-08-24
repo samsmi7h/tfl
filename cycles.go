@@ -2,76 +2,100 @@ package tfl
 
 import (
 	"crypto/tls"
-	"encoding/xml"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"sort"
-	"strconv"
 	"tfl/pkg"
 	"time"
 )
 
-type EpochMillis struct {
-	time.Time
+type BikePointsResponse []BikePoint
+
+type BikePoint struct {
+	ID                   string               `json:"id"`
+	CommonName           string               `json:"commonName"`
+	AdditionalProperties []AdditionalProperty `json:"additionalProperties"`
+	Lat                  float64              `json:"lat"`
+	Long                 float64              `json:"lon"`
 }
 
-func (e *EpochMillis) UnmarshalText(text []byte) error {
-	s := string(text)
-	if s == "" { // handles <removalDate/> etc.
-		e.Time = time.Time{}
-		return nil
-	}
-	ms, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return err
-	}
-	e.Time = time.Unix(0, ms*int64(time.Millisecond))
-	return nil
-}
-
-type CycleStations struct {
-	XMLName    xml.Name       `xml:"stations"`
-	LastUpdate EpochMillis    `xml:"lastUpdate,attr"`
-	Version    string         `xml:"version,attr"`
-	Stations   []CycleStation `xml:"station"`
+type AdditionalProperty struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 type CycleStation struct {
-	ID              int         `xml:"id"`
-	Name            string      `xml:"name"`
-	TerminalName    string      `xml:"terminalName"`
-	Lat             float64     `xml:"lat"`
-	Long            float64     `xml:"long"`
-	Installed       bool        `xml:"installed"`
-	Locked          bool        `xml:"locked"`
-	InstallDate     EpochMillis `xml:"installDate"`
-	RemovalDate     EpochMillis `xml:"removalDate"`
-	Temporary       bool        `xml:"temporary"`
-	NbBikes         int         `xml:"nbBikes"`
-	NbStandardBikes int         `xml:"nbStandardBikes"`
-	NbEBikes        int         `xml:"nbEBikes"`
-	NbEmptyDocks    int         `xml:"nbEmptyDocks"`
-	NbDocks         int         `xml:"nbDocks"`
+	ID              string
+	Name            string
+	Lat             float64
+	Long            float64
+	Installed       bool
+	Locked          bool
+	NbBikes         int
+	NbStandardBikes int
+	NbEBikes        int
+	NbEmptyDocks    int
+	NbDocks         int
 }
 
-func DecodeCycleAvailability(r io.Reader) (CycleStations, error) {
-	dec := xml.NewDecoder(r)
-	var data CycleStations
+func DecodeCycleStations(r io.Reader) ([]CycleStation, error) {
+	dec := json.NewDecoder(r)
+	var data BikePointsResponse
 	if err := dec.Decode(&data); err != nil {
-		return CycleStations{}, err
+		return []CycleStation{}, err
 	}
 
-	return data, nil
+	var stations []CycleStation
+	for _, bp := range data {
+		var cs CycleStation
+
+		cs.ID = bp.ID
+		cs.Name = bp.CommonName
+		cs.Lat = bp.Lat
+		cs.Long = bp.Long
+
+		for _, prop := range bp.AdditionalProperties {
+			switch prop.Key {
+			case "Installed":
+				if prop.Value == "true" {
+					cs.Installed = true
+				} else {
+					cs.Installed = false
+				}
+			case "Locked":
+				if prop.Value == "true" {
+					cs.Locked = true
+				} else {
+					cs.Locked = false
+				}
+
+			case "NbBikes":
+				fmt.Sscanf(prop.Value, "%d", &cs.NbBikes)
+			case "NbStandardBikes":
+				fmt.Sscanf(prop.Value, "%d", &cs.NbStandardBikes)
+			case "NbEBikes":
+				fmt.Sscanf(prop.Value, "%d", &cs.NbEBikes)
+			case "NbEmptyDocks":
+				fmt.Sscanf(prop.Value, "%d", &cs.NbEmptyDocks)
+			case "NbDocks":
+				fmt.Sscanf(prop.Value, "%d", &cs.NbDocks)
+			}
+
+		}
+		stations = append(stations, cs)
+	}
+
+	return stations, nil
 }
 
 func cycleURL(cfg Config) string {
-	return fmt.Sprintf("https://tfl.gov.uk/tfl/syndication/feeds/cycle-hire/livecyclehireupdates.xml?app_key=%s", cfg.TFLAppKey)
+	return fmt.Sprintf("https://api.tfl.gov.uk/BikePoint?app_key=%s", cfg.TFLAppKey)
 }
 
-func GetCycleAvailability(cfg Config) (CycleStations, error) {
+func GetCycleStations(cfg Config) ([]CycleStation, error) {
 	url := cycleURL(cfg)
-	fmt.Println("Fetching cycle availability from", url)
 	tr := &http.Transport{
 		Proxy:           http.ProxyFromEnvironment,
 		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
@@ -87,22 +111,20 @@ func GetCycleAvailability(cfg Config) (CycleStations, error) {
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
 	// Make the request look like curl/a normal browser
 	req.Header.Set("User-Agent", "curl/8.5.0")
-	req.Header.Set("Accept", "application/xml, text/xml;q=0.9, */*;q=0.8")
+	req.Header.Set("Accept", "application/json, text/xml;q=0.9, */*;q=0.8")
 	req.Header.Set("Connection", "close") // optional: avoid long-lived connections
 
 	res, err := client.Do(req)
 	if err != nil {
-		return CycleStations{}, err
+		return []CycleStation{}, err
 	}
 
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(res.Body)
-		fmt.Println("Response body:", string(b))
-		return CycleStations{}, fmt.Errorf("error fetching cycle availability: status %d", res.StatusCode)
+		return []CycleStation{}, fmt.Errorf("error fetching cycle availability: status %d", res.StatusCode)
 	}
 
-	return DecodeCycleAvailability(res.Body)
+	return DecodeCycleStations(res.Body)
 }
 
 type CycleStationWithDistance struct {
@@ -111,13 +133,13 @@ type CycleStationWithDistance struct {
 }
 
 func GetCycleAvailabilityWithinRange(cfg Config, lat, long float64, radiusLimit float64) ([]CycleStationWithDistance, error) {
-	data, err := GetCycleAvailability(cfg)
+	data, err := GetCycleStations(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	var nearby []CycleStationWithDistance
-	for _, station := range data.Stations {
+	for _, station := range data {
 		if !station.Installed || station.Locked {
 			continue
 		}
