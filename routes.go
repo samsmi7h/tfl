@@ -39,13 +39,13 @@ func HandleQueryStationAvailability(cfg Config, stationIDs []string) (string, er
 		hasBikes := station.NbStandardBikes > 0
 
 		if hasDocks && hasBikes {
-			message += fmt.Sprintf("%s has %d bikes and %d docks\n", shortStationName(station.Name), station.NbStandardBikes, station.NbEmptyDocks)
+			message += fmt.Sprintf("%s has %d bikes and %d docks.\n", shortStationName(station.Name), station.NbStandardBikes, station.NbEmptyDocks)
 		} else if hasDocks {
-			message += fmt.Sprintf("%s has %d docks but no bikes\n", shortStationName(station.Name), station.NbEmptyDocks)
+			message += fmt.Sprintf("%s has %d docks but no bikes.\n", shortStationName(station.Name), station.NbEmptyDocks)
 		} else if hasBikes {
-			message += fmt.Sprintf("%s has %d bikes but no docks\n", shortStationName(station.Name), station.NbStandardBikes)
+			message += fmt.Sprintf("%s has %d bikes but no docks.\n", shortStationName(station.Name), station.NbStandardBikes)
 		} else {
-			message += fmt.Sprintf("%s has nothing, lol what\n", shortStationName(station.Name))
+			message += fmt.Sprintf("%s has nothing, lol what.\n", shortStationName(station.Name))
 		}
 	}
 
