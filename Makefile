@@ -46,6 +46,12 @@ lambda/public-url:
 	  --auth-type NONE
 	aws lambda add-permission \
 	  --function-name ${LAMBDA_NAME} \
+	  --action lambda:InvokeFunction \
+	  --principal "*" \
+	  --function-url-auth-type NONE \
+	  --statement-id FunctionURLAllowPublic
+	aws lambda add-permission \
+	  --function-name ${LAMBDA_NAME} \
 	  --action lambda:InvokeFunctionUrl \
 	  --principal "*" \
 	  --function-url-auth-type NONE \
